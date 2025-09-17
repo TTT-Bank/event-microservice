@@ -8,8 +8,7 @@ RUN apt-get update && apt-get install -y musl-tools pkg-config libssl-dev \
 
 FROM chef AS planner
 COPY ./Cargo.toml ./Cargo.lock ./
-COPY ./core ./core
-COPY ./presentation ./presentation
+COPY ./src ./src
 RUN cargo chef prepare
 
 FROM chef AS builder
@@ -20,7 +19,7 @@ RUN cargo build --release --target x86_64-unknown-linux-musl
 
 FROM scratch AS runtime
 WORKDIR /app
-COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/presentation /usr/local/bin/app
+COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/event-microservice /usr/local/bin/app
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/app"]

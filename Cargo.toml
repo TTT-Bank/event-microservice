@@ -1,6 +1,22 @@
-[workspace]
-resolver = "3"
-members = ["core", "presentation", "infrastructure"]
+[package]
+name = "event-microservice"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+actix-web = "4.11"
+utoipa = { version = "5", features = ["actix_extras", "time"] }
+utoipa-actix-web = "0.1"
+utoipa-swagger-ui = { version = "9", features = ["actix-web", "vendored"] }
+thiserror = "2.0"
+simple_logger = "5.0"
+log = "0.4"
+dotenvy = "0.15"
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "macros", "time", "derive", "migrate", "json"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+jsonwebtoken = "9"
+time = { version = "0.3", features = ["serde"] }
 
 [profile.release]
 lto = "fat"
@@ -9,7 +25,7 @@ opt-level = 3
 strip = "symbols"
 panic = "abort"
 
-[workspace.lints.rust]
+[lints.rust]
 ambiguous_negative_literals = "warn"
 missing_debug_implementations = "warn"
 redundant_imports = "warn"
@@ -18,7 +34,7 @@ trivial_numeric_casts = "warn"
 unsafe_op_in_unsafe_fn = "warn"
 unused_lifetimes = "warn"
 
-[workspace.lints.clippy]
+[lints.clippy]
 cargo = { level = "warn", priority = -1 }
 complexity = { level = "warn", priority = -1 }
 correctness = { level = "warn", priority = -1 }
@@ -48,3 +64,5 @@ unnecessary_safety_comment = "warn"
 unnecessary_safety_doc = "warn"
 unneeded_field_pattern = "warn"
 unused_result_ok = "warn"
+
+multiple-crate-versions = "allow"
