@@ -1,92 +1,84 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{Pool, Postgres, types::Json};
+use sqlx::PgConnection;
+use utoipa::ToSchema;
+use crate::db::event::EventId;
+use crate::db::user::UserId;
 
-use super::event::{EventModel, Address, Status};
+use super::event::EventModel;
 use super::utils::Offset;
 use super::error::Result;
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, sqlx::FromRow)]
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 pub struct FavoriteModel {
-        pub event: EventModel,
-        pub favorite_created_at: time::PrimitiveDateTime,
-        pub favorite_updated_at: time::PrimitiveDateTime
+        user_id: EventId,
+        event_id: UserId,
+        created_at: time::PrimitiveDateTime,
+        updated_at: time::PrimitiveDateTime
 }
 
-pub async fn insert(pool: Pool<Postgres>, event_id: i64, user_id: i64) -> Result<()> {
-        sqlx::query!(
+#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+pub struct FavoriteEvent {
+        event: EventModel,
+        created_at: time::PrimitiveDateTime,
+        updated_at: time::PrimitiveDateTime
+}
+
+pub async fn insert(conn: &mut PgConnection, event_id: EventId, user_id: UserId) -> Result<FavoriteModel> {
+        sqlx::query_as!(
+                FavoriteModel,
                 r#"
                 INSERT INTO "favorite" (user_id, event_id)
                 VALUES ($1, $2)
+                RETURNING user_id, event_id, created_at, updated_at
                 "#,
                 user_id,
                 event_id
         )
-        .execute(&pool)
-        .await?;
-
-        Ok(())
+        .fetch_one(conn)
+        .await
 }
 
-pub async fn get_all_by_user(pool: Pool<Postgres>, user_id: i64, offset: Offset) -> Result<Vec<FavoriteModel>> {
-        let rows = sqlx::query!( // TODO: Make it into query_as!()
-        r#"
-        SELECT
-                "event".id,
-                "event".organizer_id,
-                "event".title,
-                "event".description,
-                "event".date,
-                "event".cost,
-                "event".address AS "address: Json<Address>",
-                "event".status AS "status: Status",
-                "event".created_at, "event".updated_at,
-                "favorite".created_at AS favorite_created_at,
-                "favorite".updated_at AS favorite_updated_at
-        FROM "favorite"
-        JOIN "event" ON "favorite".event_id = "event".id
-        WHERE "favorite".user_id = $1
-        LIMIT $2
-        OFFSET ($2::INT * ($3::INT - 1))
-        "#,
-        user_id, offset.limit, offset.page
+pub async fn get_all_by_user(conn: &mut PgConnection, user_id: UserId, offset: Offset) -> Result<Vec<FavoriteEvent>> {
+        sqlx::query_as!(
+                FavoriteEvent,
+                r#"
+                SELECT
+                        ("event".id,
+                        "event".organizer_id,
+                        "event".title,
+                        "event".description,
+                        "event".date,
+                        "event".cost,
+                        "event".address,
+                        "event".status,
+                        "event".created_at,
+                        "event".updated_at) AS "event!: EventModel",
+                        "favorite".created_at,
+                        "favorite".updated_at
+                FROM "favorite"
+                JOIN "event" ON "favorite".event_id = "event".id
+                WHERE "favorite".user_id = $1
+                LIMIT $2
+                OFFSET ($2::INT * ($3::INT - 1))
+                "#,
+                user_id, offset.limit, offset.page
         )
-        .fetch_all(&pool)
-        .await?;
-
-        let favorites = rows.into_iter()
-        .map(|r| FavoriteModel {
-                event: EventModel {
-                        id: r.id,
-                        organizer_id: r.organizer_id,
-                        title: r.title.into(),
-                        description: r.description.into(),
-                        date: r.date,
-                        cost: r.cost,
-                        address: r.address,
-                        status: r.status,
-                        created_at: r.created_at,
-                        updated_at: r.updated_at
-                },
-                favorite_created_at: r.favorite_created_at,
-                favorite_updated_at: r.favorite_updated_at,
-        })
-        .collect::<Vec<_>>();
-
-        Ok(favorites)
+        .fetch_all(conn)
+        .await
 }
 
-pub async fn delete(pool: Pool<Postgres>, event_id: i64, user_id: i64) -> Result<()> {
-        sqlx::query!(
+pub async fn delete(conn: &mut PgConnection, event_id: EventId, user_id: UserId) -> Result<Option<FavoriteModel>> {
+        sqlx::query_as!(
+                FavoriteModel,
                 r#"
                 DELETE FROM "favorite"
                 WHERE user_id = $1
                 AND event_id = $2
+                RETURNING user_id, event_id, created_at, updated_at
                 "#,
                 user_id,
                 event_id
         )
-        .execute(&pool)
-        .await?;
-
-        Ok(())
+        .fetch_optional(conn)
+        .await
 }

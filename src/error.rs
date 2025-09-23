@@ -8,7 +8,7 @@ pub enum BaseError {
         #[error("Dotenvy error: {0}")]
         Dotenvy(#[from] dotenvy::Error),
         #[error("Db error: {0}")]
-        Db(#[from] crate::db::error::DbError)
+        Sqlx(#[from] sqlx::Error)
 }
 
 pub type Result<T> = core::result::Result<T, BaseError>;

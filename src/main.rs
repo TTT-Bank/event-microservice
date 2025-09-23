@@ -4,7 +4,7 @@ mod error;
 
 use std::{net::SocketAddr, sync::LazyLock};
 
-use actix_web::{App, HttpServer, body::MessageBody, dev::{ServiceRequest, ServiceResponse}, http::header, middleware::{self, Next}};
+use actix_web::{App, HttpServer, middleware, web::Data};
 use utoipa_actix_web::{AppExt, scope, service_config::ServiceConfig};
 use error::Result;
 use utoipa::OpenApi;
@@ -14,6 +14,10 @@ fn app_config(cfg: &mut ServiceConfig) {
         cfg
         .service(scope::scope("/api/v1")
                 .service(handles::ping)
+                .service(handles::user::get_user)
+                .service(handles::user::create_user)
+                .service(handles::user::delete_user)
+                .service(handles::user::update_user_role)
         );
 }
 
@@ -37,17 +41,6 @@ static SERVER_ADDRESS: LazyLock<SocketAddr> = LazyLock::new(|| {
 });
 
 #[derive(OpenApi)]
-#[openapi(
-        info(
-                title = "TEST",
-                version = "0.1.0",
-        ),
-        tags([
-                name = "User"
-        ], [
-                name = "Event"
-        ])
-)]
 struct ApiDoc;
 
 #[actix_web::main]
@@ -62,7 +55,7 @@ async fn main() -> Result<()> {
                         .wrap(middleware::Logger::default())
                         .into_utoipa_app()
                         .openapi(ApiDoc::openapi())
-                        .app_data(pool.clone())
+                        .app_data(Data::new(pool.clone()))
                         .configure(app_config)
                         .openapi_service(openapi_service_factory)
                         .into_app()

@@ -1,62 +1,66 @@
 use serde::{Deserialize, Serialize};
-use sqlx::{Pool, Postgres};
+use sqlx::PgConnection;
+use utoipa::ToSchema;
 
 use super::error::Result;
 
-#[derive(Debug, Deserialize)]
-pub struct UserCredentials<'a> {
-        pub login: &'a str,
-        pub password: &'a [u8]
+pub type UserId = i64;
+
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct UserCredentials {
+        pub login: String,
+        pub password: String
 }
 
-#[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, sqlx::Type, Serialize, Deserialize, ToSchema)]
+#[sqlx(type_name = "user_role", rename_all = "PascalCase")]
 pub enum UserRole {
         User,
         Organizer,
         Admin
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Serialize, ToSchema)]
 pub struct UserModel {
-        pub id: i64,
-        pub login: Box<str>,
-        pub role: UserRole,
-        pub created_at: time::PrimitiveDateTime,
-        pub updated_at: time::PrimitiveDateTime
+        id: UserId,
+        login: Box<str>,
+        role: UserRole,
+        created_at: time::PrimitiveDateTime,
+        updated_at: time::PrimitiveDateTime
 }
 
-pub async fn insert(pool: Pool<Postgres>, credentials: UserCredentials<'_>) -> Result<()> {
-        sqlx::query!(
+pub async fn insert(conn: &mut PgConnection, credentials: UserCredentials) -> Result<UserModel> {
+        sqlx::query_as!(
+                UserModel,
                 r#"
                         INSERT INTO "user" (login, password)
                         VALUES ($1, $2)
+                        RETURNING id, login, role AS "role: UserRole", created_at, updated_at
                 "#,
                 credentials.login,
                 credentials.password
         )
-        .execute(&pool)
-        .await?;
-
-        Ok(())
+        .fetch_one(conn)
+        .await
 }
 
-pub async fn update_role(pool: Pool<Postgres>, id: i64, role: UserRole) -> Result<()> {
-        sqlx::query!(
+pub async fn update_role(conn: &mut PgConnection, id: UserId, role: UserRole) -> Result<Option<UserModel>> {
+        sqlx::query_as!(
+                UserModel,
                 r#"
                         UPDATE "user"
                         SET role = $1
                         WHERE id = $2
+                        RETURNING id, login, role AS "role: UserRole", created_at, updated_at
                 "#,
                 role as _,
                 id
         )
-        .execute(&pool)
-        .await?;
-
-        Ok(())
+        .fetch_optional(conn)
+        .await
 }
 
-pub async fn get_by_login(pool: Pool<Postgres>, login: &str) -> Result<Option<UserModel>> {
+pub async fn get_by_login(conn: &mut PgConnection, login: &str) -> Result<Option<UserModel>> {
         sqlx::query_as!(
                 UserModel,
                 r#"
@@ -66,12 +70,11 @@ pub async fn get_by_login(pool: Pool<Postgres>, login: &str) -> Result<Option<Us
                 "#,
                 login
         )
-        .fetch_optional(&pool)
+        .fetch_optional(conn)
         .await
-        .map_err(Into::into)
 }
 
-pub async fn get_by_id(pool: Pool<Postgres>, id: i64) -> Result<Option<UserModel>> {
+pub async fn get_by_id(conn: &mut PgConnection, id: UserId) -> Result<Option<UserModel>> {
         sqlx::query_as!(
                 UserModel,
                 r#"
@@ -81,12 +84,11 @@ pub async fn get_by_id(pool: Pool<Postgres>, id: i64) -> Result<Option<UserModel
                 "#,
                 id
         )
-        .fetch_optional(&pool)
+        .fetch_optional(conn)
         .await
-        .map_err(Into::into)
 }
 
-pub async fn get_by_credentials(pool: Pool<Postgres>, credentials: UserCredentials<'_>) -> Result<Option<UserModel>> {
+pub async fn get_by_credentials(conn: &mut PgConnection, credentials: UserCredentials) -> Result<Option<UserModel>> {
         sqlx::query_as!(
                 UserModel,
                 r#"
@@ -98,21 +100,20 @@ pub async fn get_by_credentials(pool: Pool<Postgres>, credentials: UserCredentia
                 credentials.login,
                 credentials.password
         )
-        .fetch_optional(&pool)
+        .fetch_optional(conn)
         .await
-        .map_err(Into::into)
 }
 
-pub async fn delete_by_id(pool: Pool<Postgres>, id: i64) -> Result<()> {
-        sqlx::query!(
+pub async fn delete_by_id(conn: &mut PgConnection, id: UserId) -> Result<Option<UserModel>> {
+        sqlx::query_as!(
+                UserModel,
                 r#"
                         DELETE FROM "user"
                         WHERE id = $1
+                        RETURNING id, login, role AS "role: UserRole", created_at, updated_at
                 "#,
                 id
         )
-        .execute(&pool)
-        .await?;
-
-        Ok(())
+        .fetch_optional(conn)
+        .await
 }
