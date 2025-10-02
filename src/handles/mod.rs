@@ -1,4 +1,6 @@
 pub mod user;
+pub mod event;
+pub mod favorite;
 mod error;
 
 use actix_web::{HttpResponse, get, http::header::ContentType};

@@ -1,25 +1,32 @@
 use serde::{Deserialize, Serialize};
 use sqlx::PgConnection;
 use utoipa::ToSchema;
+use serde_with::{serde_as, TimestampSeconds};
 use crate::db::event::EventId;
-use crate::db::user::UserId;
+use crate::domain::user::model::UserId;
 
 use super::event::EventModel;
 use super::utils::Offset;
 use super::error::Result;
 
+#[serde_as]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 pub struct FavoriteModel {
         user_id: EventId,
         event_id: UserId,
+        #[serde_as(as = "TimestampSeconds")]
         created_at: time::PrimitiveDateTime,
+        #[serde_as(as = "TimestampSeconds")]
         updated_at: time::PrimitiveDateTime
 }
 
+#[serde_as]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 pub struct FavoriteEvent {
         event: EventModel,
+        #[serde_as(as = "TimestampSeconds")]
         created_at: time::PrimitiveDateTime,
+        #[serde_as(as = "TimestampSeconds")]
         updated_at: time::PrimitiveDateTime
 }
 
@@ -67,7 +74,7 @@ pub async fn get_all_by_user(conn: &mut PgConnection, user_id: UserId, offset: O
         .await
 }
 
-pub async fn delete(conn: &mut PgConnection, event_id: EventId, user_id: UserId) -> Result<Option<FavoriteModel>> {
+pub async fn delete(conn: &mut PgConnection, user_id: UserId, event_id: EventId) -> Result<Option<FavoriteModel>> {
         sqlx::query_as!(
                 FavoriteModel,
                 r#"

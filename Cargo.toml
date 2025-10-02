@@ -16,6 +16,7 @@ sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "macros", "ti
 serde = { version = "1.0", features = ["derive"] }
 serde_with = { version = "3.14", features = ["time_0_3"] }
 serde_json = "1.0"
+serde-aux = { version = "4.7", default-features = false }
 jsonwebtoken = "9"
 time = { version = "0.3", features = ["serde"] }
 argon2 = "0.5"

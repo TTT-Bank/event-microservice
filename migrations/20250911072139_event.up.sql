@@ -6,7 +6,7 @@ DROP TABLE IF EXISTS "event";
 CREATE TABLE "event" (
         id           BIGSERIAL    NOT NULL PRIMARY KEY,
         organizer_id BIGINT       NOT NULL REFERENCES "user"(id),
-        title        VARCHAR(255) NOT NULL UNIQUE,
+        title        TEXT         NOT NULL UNIQUE,
         description  TEXT         NOT NULL,
         date         TIMESTAMP    NOT NULL,
         cost         INT          NOT NULL,

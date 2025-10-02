@@ -1,6 +1,7 @@
 mod db;
 mod handles;
 mod error;
+mod domain;
 
 use std::{net::SocketAddr, sync::LazyLock};
 
@@ -14,10 +15,9 @@ fn app_config(cfg: &mut ServiceConfig) {
         cfg
         .service(scope::scope("/api/v1")
                 .service(handles::ping)
-                .service(handles::user::get_user)
-                .service(handles::user::create_user)
-                .service(handles::user::delete_user)
-                .service(handles::user::update_user_role)
+                .configure(handles::user::user_app_config)
+                .configure(handles::event::event_app_config)
+                .configure(handles::favorite::favorite_app_config)
         );
 }
 

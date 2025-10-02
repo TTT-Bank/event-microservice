@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgConnection;
 use sqlx::types::Json;
 use utoipa::ToSchema;
-
-use crate::db::user::UserId;
+use serde_with::{serde_as, TimestampSeconds};
+use crate::domain::user::model::UserId;
 
 use super::error::Result;
 use super::utils::Offset;
@@ -15,12 +15,15 @@ pub struct Address {
         pub city: Box<str>,
         pub street: Box<str>,
         pub house: i16,
+        #[serde(default)]
         pub housing: Option<i16>,
+        #[serde(default)]
         pub building: Option<i16>,
+        #[serde(default)]
         pub metro: Option<Box<str>>
 }
 
-#[derive(Debug, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 #[sqlx(type_name = "status", rename_all = "PascalCase")]
 pub enum Status {
         Approved,
@@ -28,32 +31,39 @@ pub enum Status {
         OnReview
 }
 
-#[derive(Debug, Deserialize)]
-pub struct NewEvent<'a> {
+#[serde_as]
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct NewEvent {
         pub organizer_id: UserId,
-        pub title: &'a str,
-        pub description: &'a str,
+        pub title: String,
+        pub description: String,
+        #[serde_as(as = "TimestampSeconds")]
         pub date: time::PrimitiveDateTime,
         pub cost: i32,
+        #[schema(value_type = Object)]
         pub address: Json<Address>
 }
 
+#[serde_as]
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, ToSchema)]
 pub struct EventModel {
         pub id: EventId,
         pub organizer_id: UserId,
         pub title: Box<str>,
         pub description: Box<str>,
+        #[serde_as(as = "TimestampSeconds")]
         pub date: time::PrimitiveDateTime,
         pub cost: i32,
         #[schema(value_type = Object)]
         pub address: Json<Address>,
         pub status: Status,
+        #[serde_as(as = "TimestampSeconds")]
         pub created_at: time::PrimitiveDateTime,
+        #[serde_as(as = "TimestampSeconds")]
         pub updated_at: time::PrimitiveDateTime
 }
 
-pub async fn insert(conn: &mut PgConnection, event: NewEvent<'_>) -> Result<EventModel> {
+pub async fn insert(conn: &mut PgConnection, event: NewEvent) -> Result<EventModel> {
         sqlx::query_as!(
                 EventModel,
                 r#"
@@ -88,7 +98,7 @@ pub async fn update_status(conn: &mut PgConnection, id: EventId, status: Status)
         .await
 }
 
-pub async fn get_by_id(mut conn: PgConnection, id: EventId) -> Result<Option<EventModel>> {
+pub async fn get_by_id(conn: &mut PgConnection, id: EventId) -> Result<Option<EventModel>> {
         sqlx::query_as!(
                 EventModel,
                 r#"
@@ -98,11 +108,11 @@ pub async fn get_by_id(mut conn: PgConnection, id: EventId) -> Result<Option<Eve
                 "#,
                 id
         )
-        .fetch_optional(&mut conn)
+        .fetch_optional(conn)
         .await
 }
 
-pub async fn get_all_by_status(mut conn: PgConnection, status: Status, offset: Offset) -> Result<Vec<EventModel>> {
+pub async fn get_all_by_status(conn: &mut PgConnection, status: Status, offset: Offset) -> Result<Vec<EventModel>> {
         sqlx::query_as!(
                 EventModel,
                 r#"
@@ -116,11 +126,11 @@ pub async fn get_all_by_status(mut conn: PgConnection, status: Status, offset: O
                 offset.limit,
                 offset.page
         )
-        .fetch_all(&mut conn)
+        .fetch_all(conn)
         .await
 }
 
-pub async fn delete_by_id(mut conn: PgConnection, id: EventId) -> Result<Option<EventModel>> {
+pub async fn delete_by_id(conn: &mut PgConnection, id: EventId) -> Result<Option<EventModel>> {
         sqlx::query_as!(
                 EventModel,
                 r#"
@@ -130,6 +140,6 @@ pub async fn delete_by_id(mut conn: PgConnection, id: EventId) -> Result<Option<
                 "#,
                 id
         )
-        .fetch_optional(&mut conn)
+        .fetch_optional(conn)
         .await
 }

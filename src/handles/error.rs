@@ -11,6 +11,8 @@ pub enum HandlerError {
         SerdeJson(#[from] serde_json::Error),
         #[error("{0}")]
         Argon2(argon2::password_hash::Error),
+        #[error("{0}")]
+        Domain(#[from] crate::domain::error::DomainError)
 }
 
 impl From<sqlx::Error> for HandlerError {
