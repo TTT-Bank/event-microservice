@@ -1,44 +1,37 @@
-use sqlx::{PgTransaction, Postgres, query_builder::QueryBuilder};
+use sqlx::{Pool, Postgres, query_builder::QueryBuilder};
 
 use crate::domain::{utils::Offset, user::{model::*, repository::UserRepository}};
 
 use super::error::Result;
 
-pub struct PgUserRepository<'a> {
-        tx: PgTransaction<'a>
+pub struct PgUserRepository {
+        pool: Pool<Postgres>
 }
 
-impl<'a> PgUserRepository<'a> {
-        pub fn new(tx: PgTransaction<'a>) -> Self {
-                Self { tx }
-        }
-
-        pub async fn commit(self) -> Result<()> {
-                self.tx.commit().await
-        }
-}
-
-impl UserRepository for PgUserRepository<'_> {
+impl UserRepository<Pool<Postgres>> for PgUserRepository {
         type Error = sqlx::Error;
 
-        async fn get(&mut self, id: UserId) -> Result<Option<UserModel>> {
-                sqlx::query_as!(
-                        UserModel,
+        fn init(pool: Pool<Postgres>) -> Self {
+                Self { pool }
+        }
+
+        async fn get(&self, id: UserId) -> Result<Option<UserModel>> {
+                sqlx::query_as(
                         r#"
-                        SELECT id, login, password_hash, role AS "role: UserRole", created_at, updated_at
+                        SELECT id, login, role, created_at, updated_at
                         FROM "user"
                         WHERE id = $1
-                        "#,
-                        id
+                        "#
                 )
-                .fetch_optional(self.tx.as_mut())
+                .bind(id)
+                .fetch_optional(&self.pool)
                 .await
         }
 
-        async fn list(&mut self, offset: Offset, filters: &[UserFilter], order_by: &[UserOrder]) -> Result<Vec<UserModel>> {
+        async fn list(&self, offset: Offset, filters: &[UserFilter], order_by: &[UserOrder]) -> Result<Vec<UserModel>> {
                 let mut query_builder =
                         QueryBuilder::<Postgres>::new(r#"
-                        SELECT id, login, password_hash, role, created_at, updated_at FROM "user"
+                        SELECT id, login, role, created_at, updated_at FROM "user"
                         "#);
 
                 if !filters.is_empty() {
@@ -70,25 +63,24 @@ impl UserRepository for PgUserRepository<'_> {
                 query_builder.push(" LIMIT ").push_bind(offset.limit);
                 query_builder.push(" OFFSET (").push_bind(offset.limit).push(" * (").push_bind(offset.page).push(" - 1))");
 
-                query_builder.build_query_as().fetch_all(self.tx.as_mut()).await
+                query_builder.build_query_as().fetch_all(&self.pool).await
         }
 
-        async fn create(&mut self, credentials: UserCredentials) -> Result<UserModel> {
-                sqlx::query_as!(
-                        UserModel,
+        async fn create(&self, credentials: UserCredentials) -> Result<UserModel> {
+                sqlx::query_as(
                         r#"
                         INSERT INTO "user" (login, password_hash)
                         VALUES ($1, $2)
-                        RETURNING id, login, password_hash, role AS "role: UserRole", created_at, updated_at
-                        "#,
-                        credentials.login,
-                        credentials.password
+                        RETURNING id, login, role, created_at, updated_at
+                        "#
                 )
-                .fetch_one(self.tx.as_mut())
+                .bind(credentials.login)
+                .bind(credentials.password)
+                .fetch_one(&self.pool)
                 .await
         }
 
-        async fn update(&mut self, id: UserId, changes: UserUpdate) -> Result<Option<UserModel>> {
+        async fn update(&self, id: UserId, changes: UserUpdate) -> Result<Option<UserModel>> {
                 let mut query_builder =
                         QueryBuilder::<Postgres>::new(r#"UPDATE "user" SET "#);
 
@@ -100,22 +92,21 @@ impl UserRepository for PgUserRepository<'_> {
 
                 query_builder.push("WHERE id = ").push_bind(id).push(' ');
                 query_builder.push(
-                        r#"RETURNING id, login, password_hash, role, created_at, updated_at"#
+                        r#"RETURNING id, login, role, created_at, updated_at"#
                 );
-                query_builder.build_query_as().fetch_optional(self.tx.as_mut()).await
+                query_builder.build_query_as().fetch_optional(&self.pool).await
         }
 
-        async fn delete(&mut self, id: UserId) -> Result<Option<UserModel>> {
-                sqlx::query_as!(
-                        UserModel,
+        async fn delete(&self, id: UserId) -> Result<Option<UserModel>> {
+                sqlx::query_as(
                         r#"
                         DELETE FROM "user"
                         WHERE id = $1
-                        RETURNING id, login, password_hash, role AS "role: UserRole", created_at, updated_at
-                        "#,
-                        id
+                        RETURNING id, login, role, created_at, updated_at
+                        "#
                 )
-                .fetch_optional(self.tx.as_mut())
+                .bind(id)
+                .fetch_optional(&self.pool)
                 .await
         }
 }

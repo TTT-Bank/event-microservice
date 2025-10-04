@@ -2,10 +2,11 @@ use actix_web::{HttpResponse, delete, get, patch, post, web::{Data, Json, Path, 
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, StringWithSeparator, formats::CommaSeparator};
 use serde_aux::field_attributes::deserialize_default_from_empty_object;
-use sqlx::{Pool, Postgres};
 use utoipa_actix_web::{scope, service_config::ServiceConfig};
 
-use crate::{db::user::PgUserRepository, domain::{utils::Offset, user::{model::{UserCredentials, UserFilter, UserModel, UserOrder, UserRole, UserUpdate}, repository::UserRepository}}};
+use crate::{
+        domain::{user::{model::*, repository::UserRepository}, utils::Offset}, infrastructure::{db::user::PgUserRepository, provider::PgProvider}
+};
 
 use super::error::Result;
 use utoipa::ToSchema;
@@ -25,6 +26,7 @@ pub fn user_app_config(cfg: &mut ServiceConfig) {
                 .service(delete_user)
                 .service(update_user_role)
                 .service(list_users)
+                .configure(super::favorite::favorite_app_config)
         );
 }
 
@@ -33,13 +35,11 @@ struct UserResponse {
         user: UserModel
 }
 
-#[utoipa::path]
-#[get("/{id}")]
-async fn get_user(pool: Data<Pool<Postgres>>, id: Path<i64>) -> Result<HttpResponse> {
-        let transaction = pool.begin().await?;
-        let mut repo = PgUserRepository::new(transaction);
+#[utoipa::path(params(("user_id" = UserId, Path)))]
+#[get("/{user_id}")]
+async fn get_user(provider: Data<PgProvider>, id: Path<UserId>) -> Result<HttpResponse> {
+        let repo = provider.provide_user_repository::<PgUserRepository>();
         let user = repo.get(*id).await?;
-        repo.commit().await?;
 
         let res = match user {
                 Some(user) => {
@@ -55,7 +55,7 @@ async fn get_user(pool: Data<Pool<Postgres>>, id: Path<i64>) -> Result<HttpRespo
 
 #[utoipa::path]
 #[post("")]
-async fn create_user(pool: Data<Pool<Postgres>>, mut credentials: Json<UserCredentials>) -> Result<HttpResponse> {
+async fn create_user(provider: Data<PgProvider>, mut credentials: Json<UserCredentials>) -> Result<HttpResponse> {
         let salt = SaltString::generate(&mut OsRng);
 
         let password_hash =
@@ -64,14 +64,12 @@ async fn create_user(pool: Data<Pool<Postgres>>, mut credentials: Json<UserCrede
                         .to_string();
         credentials.password = password_hash.into();
 
-        let transaction = pool.begin().await?;
-        let mut repo = PgUserRepository::new(transaction);
+        let repo = provider.provide_user_repository::<PgUserRepository>();
 
         let user =
                 repo.create(credentials.into_inner())
                         .await
                         .map_err(Into::into);
-        repo.commit().await?;
 
         match user {
                 Ok(user) => {
@@ -89,13 +87,11 @@ async fn create_user(pool: Data<Pool<Postgres>>, mut credentials: Json<UserCrede
         }
 }
 
-#[utoipa::path]
-#[delete("/{id}")]
-async fn delete_user(pool: Data<Pool<Postgres>>, id: Path<i64>) -> Result<HttpResponse> {
-        let transaction = pool.begin().await?;
-        let mut repo = PgUserRepository::new(transaction);
+#[utoipa::path(params(("user_id" = UserId, Path)))]
+#[delete("/{user_id}")]
+async fn delete_user(provider: Data<PgProvider>, id: Path<UserId>) -> Result<HttpResponse> {
+        let repo = provider.provide_user_repository::<PgUserRepository>();
         let user = repo.delete(*id).await?;
-        repo.commit().await?;
 
         let res = match user {
                 Some(user) => {
@@ -114,13 +110,11 @@ struct UserRoleBody {
         role: UserRole
 }
 
-#[utoipa::path]
-#[patch("/{id}")]
-async fn update_user_role(pool: Data<Pool<Postgres>>, id: Path<i64>, role: Json<UserRoleBody>) -> Result<HttpResponse> {
-        let transaction = pool.begin().await?;
-        let mut repo = PgUserRepository::new(transaction);
+#[utoipa::path(params(("user_id" = UserId, Path)))]
+#[patch("/{user_id}")]
+async fn update_user_role(provider: Data<PgProvider>, id: Path<UserId>, role: Json<UserRoleBody>) -> Result<HttpResponse> {
+        let repo = provider.provide_user_repository::<PgUserRepository>();
         let user = repo.update(*id, UserUpdate::Role(role.into_inner().role)).await?;
-        repo.commit().await?;
 
         let res = match user {
                 Some(user) => {
@@ -158,12 +152,10 @@ struct ListUsersResponse {
 
 #[utoipa::path(params(ListUsersQuery))]
 #[get("")]
-async fn list_users(pool: Data<Pool<Postgres>>, query: Query<ListUsersQuery>) -> Result<HttpResponse> {
-        let transaction = pool.begin().await?;
-        let mut repo = PgUserRepository::new(transaction);
+async fn list_users(provider: Data<PgProvider>, query: Query<ListUsersQuery>) -> Result<HttpResponse> {
+        let repo = provider.provide_user_repository::<PgUserRepository>();
 
         let users = repo.list(query.offset.clone(), &query.filter, &query.order_by).await?;
-        repo.commit().await?;
 
         Ok(HttpResponse::Ok().json(ListUsersResponse {users}))
 }

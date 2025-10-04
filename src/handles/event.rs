@@ -1,12 +1,15 @@
-use actix_web::{HttpResponse, delete, get, patch, post, web::{Data, Json, Path}};
+use actix_web::{HttpResponse, delete, get, patch, post, web::{Data, Json, Path, Query}};
 use serde::{Deserialize, Serialize};
-use sqlx::{Pool, Postgres};
-use utoipa::ToSchema;
+use serde_with::{serde_as, StringWithSeparator, formats::CommaSeparator};
+use serde_aux::field_attributes::deserialize_default_from_empty_object;
 use utoipa_actix_web::{scope, service_config::ServiceConfig};
 
-use crate::db::{utils::Offset, event::{self, EventModel, NewEvent, Status}};
+use crate::{
+        domain::{event::{model::*, repository::EventRepository}, utils::Offset}, infrastructure::{db::event::PgEventRepository, provider::PgProvider}
+};
 
 use super::error::Result;
+use utoipa::ToSchema;
 
 pub fn event_app_config(cfg: &mut ServiceConfig) {
         cfg
@@ -19,17 +22,16 @@ pub fn event_app_config(cfg: &mut ServiceConfig) {
         );
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, utoipa::ToResponse)]
 struct EventResponse {
         event: EventModel
 }
 
-#[utoipa::path]
-#[get("/{id}")]
-async fn get_event(pool: Data<Pool<Postgres>>, id: Path<i64>) -> Result<HttpResponse> {
-        let mut transaction = pool.begin().await?;
-        let event = event::get_by_id(transaction.as_mut(), *id).await?;
-        transaction.commit().await?;
+#[utoipa::path(params(("event_id" = EventId, Path)))]
+#[get("/{event_id}")]
+async fn get_event(provider: Data<PgProvider>, id: Path<EventId>) -> Result<HttpResponse> {
+        let repo = provider.provide_event_repository::<PgEventRepository>();
+        let event = repo.get(*id).await?;
 
         let res = match event {
                 Some(event) => {
@@ -45,20 +47,20 @@ async fn get_event(pool: Data<Pool<Postgres>>, id: Path<i64>) -> Result<HttpResp
 
 #[utoipa::path]
 #[post("")]
-async fn create_event(pool: Data<Pool<Postgres>>, event: Json<NewEvent>) -> Result<HttpResponse> {
-        let mut transaction = pool.begin().await?;
+async fn create_event(provider: Data<PgProvider>, event: Json<NewEvent>) -> Result<HttpResponse> {
+        let repo = provider.provide_event_repository::<PgEventRepository>();
+
         let event =
-                event::insert(transaction.as_mut(), event.into_inner())
+                repo.create(event.into_inner())
                         .await
                         .map_err(Into::into);
-        transaction.commit().await?;
 
         match event {
                 Ok(event) => {
                         Ok(HttpResponse::Created().json(EventResponse {event}))
                 }
                 Err(err) => {
-                        if let super::error::HandlerError::Db(db_err) = &err {
+                        if let super::error::HandlerError::Db(db_err) = &err  {
                                 if db_err == &sqlx::error::ErrorKind::UniqueViolation {
                                         return Ok(HttpResponse::Conflict().finish())
                                 }
@@ -69,12 +71,11 @@ async fn create_event(pool: Data<Pool<Postgres>>, event: Json<NewEvent>) -> Resu
         }
 }
 
-#[utoipa::path]
-#[delete("/{id}")]
-async fn delete_event(pool: Data<Pool<Postgres>>, id: Path<i64>) -> Result<HttpResponse> {
-        let mut transaction = pool.begin().await?;
-        let event = event::delete_by_id(transaction.as_mut(), *id).await?;
-        transaction.commit().await?;
+#[utoipa::path(params(("event_id" = EventId, Path)))]
+#[delete("/{event_id}")]
+async fn delete_event(provider: Data<PgProvider>, id: Path<EventId>) -> Result<HttpResponse> {
+        let repo = provider.provide_event_repository::<PgEventRepository>();
+        let event = repo.delete(*id).await?;
 
         let res = match event {
                 Some(event) => {
@@ -90,15 +91,14 @@ async fn delete_event(pool: Data<Pool<Postgres>>, id: Path<i64>) -> Result<HttpR
 
 #[derive(Debug, Deserialize, ToSchema)]
 struct EventStatusBody {
-        status: Status
+        status: EventStatus
 }
 
-#[utoipa::path]
-#[patch("/{id}")]
-async fn update_event_status(pool: Data<Pool<Postgres>>, id: Path<i64>, status: Json<EventStatusBody>) -> Result<HttpResponse> {
-        let mut transaction = pool.begin().await?;
-        let event = event::update_status(transaction.as_mut(), *id, status.status.clone()).await?;
-        transaction.commit().await?;
+#[utoipa::path(params(("event_id" = EventId, Path)))]
+#[patch("/{event_id}")]
+async fn update_event_status(provider: Data<PgProvider>, id: Path<EventId>, status: Json<EventStatusBody>) -> Result<HttpResponse> {
+        let repo = provider.provide_event_repository::<PgEventRepository>();
+        let event = repo.update(*id, EventUpdate::Status(status.into_inner().status)).await?;
 
         let res = match event {
                 Some(event) => {
@@ -112,24 +112,34 @@ async fn update_event_status(pool: Data<Pool<Postgres>>, id: Path<i64>, status: 
         Ok(res)
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
-struct ListEventsBody {
-        status: Status,
+#[serde_as]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(style = Form, parameter_in = Query)]
+struct ListEventsQuery {
+        #[param(required = false)]
+        #[serde(flatten, deserialize_with = "deserialize_default_from_empty_object")]
+        offset: Offset,
+        #[param(value_type = String)]
         #[serde(default)]
-        offset: Offset
+        #[serde_as(as = "StringWithSeparator::<CommaSeparator, EventFilter>")]
+        filter: Vec<EventFilter>,
+        #[param(value_type = String)]
+        #[serde(default)]
+        #[serde_as(as = "StringWithSeparator::<CommaSeparator, EventOrder>")]
+        order_by: Vec<EventOrder>
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, utoipa::ToResponse)]
 struct ListEventsResponse {
         events: Vec<EventModel>
 }
 
-#[utoipa::path]
+#[utoipa::path(params(ListEventsQuery))]
 #[get("")]
-async fn list_events(pool: Data<Pool<Postgres>>, body: Json<ListEventsBody>) -> Result<HttpResponse> {
-        let mut transaction = pool.begin().await?;
-        let events = event::get_all_by_status(transaction.as_mut(), body.status.clone(), body.offset.clone()).await?;
-        transaction.commit().await?;
+async fn list_events(provider: Data<PgProvider>, query: Query<ListEventsQuery>) -> Result<HttpResponse> {
+        let repo = provider.provide_event_repository::<PgEventRepository>();
+
+        let events = repo.list(query.offset.clone(), &query.filter, &query.order_by).await?;
 
         Ok(HttpResponse::Ok().json(ListEventsResponse {events}))
 }

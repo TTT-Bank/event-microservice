@@ -12,12 +12,12 @@ thiserror = "2.0"
 simple_logger = "5.0"
 log = "0.4"
 dotenvy = "0.15"
-sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "macros", "time", "derive", "migrate", "json"] }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "time", "derive", "migrate", "json"] }
 serde = { version = "1.0", features = ["derive"] }
-serde_with = { version = "3.14", features = ["time_0_3"] }
+serde_with = { version = "3.15", features = ["time_0_3"] }
 serde_json = "1.0"
 serde-aux = { version = "4.7", default-features = false }
-jsonwebtoken = "9"
+jsonwebtoken = { version = "10.0", features = ["rust_crypto"] }
 time = { version = "0.3", features = ["serde"] }
 argon2 = "0.5"
 

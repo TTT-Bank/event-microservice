@@ -1,5 +1,4 @@
+pub mod error;
 pub mod user;
 pub mod event;
-pub mod utils;
-pub mod error;
 pub mod favorite;

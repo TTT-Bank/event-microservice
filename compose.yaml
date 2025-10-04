@@ -1,7 +1,32 @@
+networks:
+  db:
+    driver: bridge
+
 services:
   server:
     build:
       context: .
       target: runtime
+    environment:
+      DATABASE_URL: "postgresql://postgres@db:5432/postgres"
+      MIN_CONNECTIONS: 5
+      MAX_CONNECTIONS: 20
+      ACQUIRE_TIMEOUT: 10
+      IDLE_TIMEOUT: 600
+      SERVER_WORKERS: 2
+      SERVER_ADDRESS: "0.0.0.0:8080"
     ports:
       - 8080:8080
+    networks:
+      - db
+    depends_on:
+      - db
+  db:
+    container_name: db
+    image: docker.io/bitnami/postgresql:latest
+    environment:
+      ALLOW_EMPTY_PASSWORD: yes
+    ports:
+      - "5432:5432"
+    networks:
+      - db

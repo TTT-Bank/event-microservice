@@ -1,45 +1,77 @@
-use actix_web::{HttpResponse, delete, get, post, web::{Data, Json, Path}};
+use actix_web::{HttpResponse, delete, get, post, web::{Data, Json, Path, Query}};
 use serde::{Deserialize, Serialize};
-use sqlx::{Pool, Postgres};
-use utoipa::ToSchema;
+use serde_with::{serde_as, StringWithSeparator, formats::CommaSeparator};
+use serde_aux::field_attributes::deserialize_default_from_empty_object;
 use utoipa_actix_web::{scope, service_config::ServiceConfig};
 
-use crate::domain::user::model::UserId;
-use crate::db::{event::EventId, favorite::{self, FavoriteEvent, FavoriteModel}, utils::Offset};
+use crate::{
+        domain::{event::model::{EventId, EventModel}, favorite::{model::*, repository::FavoriteRepository}, user::model::UserId, utils::Offset}, infrastructure::{db::favorite::PgFavoriteRepository, provider::PgProvider}
+};
 
 use super::error::Result;
+use utoipa::ToSchema;
 
 pub fn favorite_app_config(cfg: &mut ServiceConfig) {
         cfg
-        .service(scope::scope("/users/{id}/favorites")
+        .service(scope::scope("/{user_id}/favorites")
+        .service(get_favorite)
         .service(create_favorite)
         .service(delete_favorite)
-        .service(list_favorites)
+        .service(list_favorite)
         );
 }
 
-#[derive(Debug, Serialize, ToSchema)]
+#[derive(Debug, Serialize, utoipa::ToResponse)]
+struct FavoriteEventResponse {
+        favorite_event: EventModel
+}
+
+#[utoipa::path(params(("user_id" = UserId, Path), ("event_id" = EventId, Path)))]
+#[get("/{event_id}")]
+async fn get_favorite(provider: Data<PgProvider>, id: Path<(UserId, EventId)>) -> Result<HttpResponse> {
+        let repo = provider.provide_favorite_repository::<PgFavoriteRepository>();
+        let id = *id;
+        let favorite_event = repo.get(id.0, id.1).await?;
+
+        let res = match favorite_event {
+                Some(favorite_event) => {
+                        HttpResponse::Ok().json(FavoriteEventResponse {favorite_event})
+                }
+                None => {
+                        HttpResponse::NotFound().finish()
+                }
+        };
+
+        Ok(res)
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
+struct EventIdBody {
+        event_id: EventId
+}
+
+#[derive(Debug, Serialize, utoipa::ToResponse)]
 struct FavoriteResponse {
         favorite: FavoriteModel
 }
 
-
-#[utoipa::path]
+#[utoipa::path(params(("user_id" = UserId, Path)))]
 #[post("")]
-async fn create_favorite(pool: Data<Pool<Postgres>>, user_id: Path<UserId>, event_id: Json<EventId>) -> Result<HttpResponse> {
-        let mut transaction = pool.begin().await?;
+async fn create_favorite(provider: Data<PgProvider>, user_id: Path<UserId>, event_id: Json<EventIdBody>) -> Result<HttpResponse> {
+        let repo = provider.provide_favorite_repository::<PgFavoriteRepository>();
+
+        log::info!("{user_id} + {event_id:?}");
         let favorite =
-                favorite::insert(transaction.as_mut(), *user_id, *event_id)
+                repo.create(*user_id, event_id.event_id)
                         .await
                         .map_err(Into::into);
-        transaction.commit().await?;
 
         match favorite {
                 Ok(favorite) => {
                         Ok(HttpResponse::Created().json(FavoriteResponse {favorite}))
                 }
                 Err(err) => {
-                        if let super::error::HandlerError::Db(db_err) = &err {
+                        if let super::error::HandlerError::Db(db_err) = &err  {
                                 if db_err == &sqlx::error::ErrorKind::UniqueViolation {
                                         return Ok(HttpResponse::Conflict().finish())
                                 }
@@ -50,13 +82,12 @@ async fn create_favorite(pool: Data<Pool<Postgres>>, user_id: Path<UserId>, even
         }
 }
 
-#[utoipa::path]
-#[delete("/{id}")]
-async fn delete_favorite(pool: Data<Pool<Postgres>>, id: Path<(UserId, EventId)>) -> Result<HttpResponse> {
-        let mut transaction = pool.begin().await?;
-        let (user_id, event_id) = id.into_inner();
-        let favorite = favorite::delete(transaction.as_mut(), user_id, event_id).await?;
-        transaction.commit().await?;
+#[utoipa::path(params(("user_id" = UserId, Path), ("event_id" = EventId, Path)))]
+#[delete("/{event_id}")]
+async fn delete_favorite(provider: Data<PgProvider>, id: Path<(UserId, EventId)>) -> Result<HttpResponse> {
+        let repo = provider.provide_favorite_repository::<PgFavoriteRepository>();
+        let id = *id;
+        let favorite = repo.delete(id.0, id.1).await?;
 
         let res = match favorite {
                 Some(favorite) => {
@@ -70,24 +101,34 @@ async fn delete_favorite(pool: Data<Pool<Postgres>>, id: Path<(UserId, EventId)>
         Ok(res)
 }
 
-#[derive(Debug, Deserialize, ToSchema)]
-struct ListFavoritesjson {
+#[serde_as]
+#[derive(Debug, Deserialize, utoipa::IntoParams)]
+#[into_params(style = Form, parameter_in = Query)]
+struct ListFavoriteEventsQuery {
+        #[param(required = false)]
+        #[serde(flatten, deserialize_with = "deserialize_default_from_empty_object")]
+        offset: Offset,
+        #[param(value_type = String)]
         #[serde(default)]
-        offset: Offset
+        #[serde_as(as = "StringWithSeparator::<CommaSeparator, FavoriteFilter>")]
+        filter: Vec<FavoriteFilter>,
+        #[param(value_type = String)]
+        #[serde(default)]
+        #[serde_as(as = "StringWithSeparator::<CommaSeparator, FavoriteOrder>")]
+        order_by: Vec<FavoriteOrder>
 }
 
-#[derive(Debug, Serialize, ToSchema)]
-struct ListFavoritesResponse {
-        favorites: Vec<FavoriteEvent>
+#[derive(Debug, Serialize, utoipa::ToResponse)]
+struct ListFavoriteEventsResponse {
+        favorite_events: Vec<EventModel>
 }
 
-#[utoipa::path]
+#[utoipa::path(params(ListFavoriteEventsQuery, ("user_id" = UserId, Path)))]
 #[get("")]
-async fn list_favorites(pool: Data<Pool<Postgres>>, user_id: Path<UserId>, json: Json<ListFavoritesjson>) -> Result<HttpResponse> {
-        let mut transaction = pool.begin().await?;
-        let json = json.into_inner();
-        let favorites = favorite::get_all_by_user(transaction.as_mut(), *user_id, json.offset).await?;
-        transaction.commit().await?;
+async fn list_favorite(provider: Data<PgProvider>, user_id: Path<UserId>, query: Query<ListFavoriteEventsQuery>) -> Result<HttpResponse> {
+        let repo = provider.provide_favorite_repository::<PgFavoriteRepository>();
 
-        Ok(HttpResponse::Ok().json(ListFavoritesResponse {favorites}))
+        let favorite_events = repo.list(*user_id, query.offset.clone(), &query.filter, &query.order_by).await?;
+
+        Ok(HttpResponse::Ok().json(ListFavoriteEventsResponse {favorite_events}))
 }

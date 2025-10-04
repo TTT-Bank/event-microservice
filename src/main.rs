@@ -1,4 +1,4 @@
-mod db;
+mod infrastructure;
 mod handles;
 mod error;
 mod domain;
@@ -11,13 +11,14 @@ use error::Result;
 use utoipa::OpenApi;
 use utoipa_swagger_ui::SwaggerUi;
 
+use crate::domain::utils::Offset;
+
 fn app_config(cfg: &mut ServiceConfig) {
         cfg
         .service(scope::scope("/api/v1")
                 .service(handles::ping)
                 .configure(handles::user::user_app_config)
                 .configure(handles::event::event_app_config)
-                .configure(handles::favorite::favorite_app_config)
         );
 }
 
@@ -41,21 +42,22 @@ static SERVER_ADDRESS: LazyLock<SocketAddr> = LazyLock::new(|| {
 });
 
 #[derive(OpenApi)]
+#[openapi(components(schemas(Offset)))]
 struct ApiDoc;
 
 #[actix_web::main]
 async fn main() -> Result<()> {
-        dotenvy::dotenv()?;
         simple_logger::init_with_level(log::Level::Debug).unwrap();
+        dotenvy::dotenv().ok();
 
-        let pool = db::init().await?;
+        let provider = infrastructure::provider::PgProvider::new().await?;
 
         HttpServer::new(move ||
                 App::new()
                         .wrap(middleware::Logger::default())
                         .into_utoipa_app()
                         .openapi(ApiDoc::openapi())
-                        .app_data(Data::new(pool.clone()))
+                        .app_data(Data::new(provider.clone()))
                         .configure(app_config)
                         .openapi_service(openapi_service_factory)
                         .into_app()

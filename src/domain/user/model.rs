@@ -54,7 +54,6 @@ impl Display for UserRole {
 pub struct UserModel {
         pub id: UserId,
         pub login: String,
-        pub password_hash: String,
         pub role: UserRole,
         #[serde_as(as = "TimestampSeconds")]
         pub created_at: time::PrimitiveDateTime,

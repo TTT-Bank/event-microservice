@@ -1,12 +1,6 @@
-pub mod error;
-pub mod user;
-pub mod event;
-pub mod favorite;
-pub mod utils;
-
-use error::Result;
 use std::{sync::LazyLock, time::Duration};
-use sqlx::{Pool, Postgres};
+
+use sqlx::{Pool, Postgres, postgres::PgPoolOptions};
 
 static DATABASE_URL: LazyLock<String> = LazyLock::new(|| {
         dotenvy::var("DATABASE_URL")
@@ -55,15 +49,39 @@ static MAX_LIFETIME: LazyLock<Option<Duration>> = LazyLock::new(|| {
                 )
 });
 
-pub async fn init() -> Result<Pool<Postgres>> {
-        let pool = sqlx::postgres::PgPoolOptions::new()
-                .min_connections(*MIN_CONNECTIONS)
-                .max_connections(*MAX_CONNECTIONS)
-                .acquire_timeout(*ACQUIRE_TIMEOUT)
-                .idle_timeout(*IDLE_TIMEOUT)
-                .max_lifetime(*MAX_LIFETIME)
-                .connect(&DATABASE_URL)
-                .await?;
+#[derive(Debug, Clone)]
+pub struct PgProvider {
+        pool: Pool<Postgres>
+}
 
-        Ok(pool)
+impl PgProvider {
+        pub async fn new() -> Result<Self, sqlx::Error> {
+                let pool = PgPoolOptions::new()
+                        .min_connections(*MIN_CONNECTIONS)
+                        .max_connections(*MAX_CONNECTIONS)
+                        .acquire_timeout(*ACQUIRE_TIMEOUT)
+                        .idle_timeout(*IDLE_TIMEOUT)
+                        .max_lifetime(*MAX_LIFETIME)
+                        .connect(&DATABASE_URL)
+                        .await?;
+
+                sqlx::migrate!().run(&pool).await?;
+
+                Ok(Self { pool })
+        }
+
+        pub fn provide_user_repository<T>(&self) -> T
+        where T: crate::domain::user::repository::UserRepository<Pool<Postgres>> {
+                T::init(self.pool.clone())
+        }
+
+        pub fn provide_event_repository<T>(&self) -> T
+        where T: crate::domain::event::repository::EventRepository<Pool<Postgres>> {
+                T::init(self.pool.clone())
+        }
+
+        pub fn provide_favorite_repository<T>(&self) -> T
+        where T: crate::domain::favorite::repository::FavoriteRepository<Pool<Postgres>> {
+                T::init(self.pool.clone())
+        }
 }
