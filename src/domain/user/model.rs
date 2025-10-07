@@ -61,6 +61,31 @@ pub struct UserModel {
         pub updated_at: time::PrimitiveDateTime
 }
 
+impl From<UserModelWithPassword> for UserModel {
+        fn from(value: UserModelWithPassword) -> Self {
+                Self {
+                        id: value.id,
+                        login: value.login,
+                        role: value.role,
+                        created_at: value.created_at,
+                        updated_at: value.updated_at
+                }
+        }
+}
+
+#[serde_as]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, sqlx::FromRow, Serialize, ToSchema)]
+pub struct UserModelWithPassword {
+        pub id: UserId,
+        pub login: String,
+        pub password_hash: String,
+        pub role: UserRole,
+        #[serde_as(as = "TimestampSeconds")]
+        pub created_at: time::PrimitiveDateTime,
+        #[serde_as(as = "TimestampSeconds")]
+        pub updated_at: time::PrimitiveDateTime
+}
+
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, ToSchema)]
 pub enum UserUpdate {
         Role(UserRole),

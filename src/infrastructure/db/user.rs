@@ -1,6 +1,6 @@
 use sqlx::{Pool, Postgres, query_builder::QueryBuilder};
 
-use crate::domain::{utils::Offset, user::{model::*, repository::UserRepository}};
+use crate::domain::{user::{model::*, repository::UserRepository}, utils::Offset};
 
 use super::error::Result;
 
@@ -106,6 +106,19 @@ impl UserRepository<Pool<Postgres>> for PgUserRepository {
                         "#
                 )
                 .bind(id)
+                .fetch_optional(&self.pool)
+                .await
+        }
+
+        async fn login(&self, login: String) -> Result<Option<UserModelWithPassword>> {
+                sqlx::query_as(
+                        r#"
+                        SELECT id, login, password_hash, role, created_at, updated_at
+                        FROM "user"
+                        WHERE login = $1
+                        "#
+                )
+                .bind(login)
                 .fetch_optional(&self.pool)
                 .await
         }

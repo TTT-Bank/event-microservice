@@ -60,6 +60,7 @@ impl EventRepository<Pool<Postgres>> for PgEventRepository {
 
                         for filter in filters {
                                 match filter {
+                                        EventFilter::OrganizerId(op) => separated.push("organizer_id ").push_unseparated(op.operation() + " ").push_bind_unseparated(op.value()),
                                         EventFilter::Cost(op) => separated.push("cost ").push_unseparated(op.operation() + " ").push_bind_unseparated(*op.value() as i32),
                                         EventFilter::Status(op) => separated.push("status ").push_unseparated(op.operation() + " ").push_bind_unseparated(op.value()),
                                         EventFilter::Title(op) => separated.push("title ").push_unseparated(op.operation() + " ").push_bind_unseparated(op.value()),

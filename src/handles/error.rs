@@ -1,3 +1,5 @@
+use actix_web_httpauth::headers::www_authenticate::bearer::Bearer;
+
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum HandlerError {
@@ -12,7 +14,11 @@ pub enum HandlerError {
         #[error("{0}")]
         Argon2(argon2::password_hash::Error),
         #[error("{0}")]
-        Domain(#[from] crate::domain::error::DomainError)
+        Domain(#[from] crate::domain::error::DomainError),
+        #[error("{0}")]
+        Auth(#[from] actix_web_httpauth::extractors::AuthenticationError<Bearer>),
+        #[error("{0}")]
+        Jwt(#[from] jsonwebtoken::errors::Error),
 }
 
 impl From<sqlx::Error> for HandlerError {

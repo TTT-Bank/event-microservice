@@ -83,6 +83,7 @@ pub enum EventUpdate {
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize, ToSchema)]
 pub enum EventFilter {
+        OrganizerId(FilterOp<UserId>),
         Status(FilterOp<EventStatus>),
         Title(FilterOp<String>),
         Cost(FilterOp<u32>)
@@ -95,6 +96,7 @@ impl FromStr for EventFilter {
                 let s = s.trim();
                 if let Some((field, op)) = s.split_once(' ') {
                         match field.trim() {
+                                "organizer_id" => Ok(Self::OrganizerId(op.parse()?)),
                                 "status" => Ok(Self::Status(op.parse()?)),
                                 "title" => Ok(Self::Title(op.parse()?)),
                                 "cost" => Ok(Self::Cost(op.parse()?)),

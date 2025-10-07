@@ -1,4 +1,4 @@
-use super::model::{UserModel, UserId, UserCredentials, UserUpdate, UserFilter, UserOrder};
+use super::model::{UserModel, UserId, UserCredentials, UserUpdate, UserFilter, UserOrder, UserModelWithPassword};
 use super::super::utils::Offset;
 
 pub trait UserRepository<Db> {
@@ -11,4 +11,6 @@ pub trait UserRepository<Db> {
         async fn create(&self, credentials: UserCredentials) -> Result<UserModel, Self::Error>;
         async fn update(&self, id: UserId, changes: UserUpdate) -> Result<Option<UserModel>, Self::Error>;
         async fn delete(&self, id: UserId) -> Result<Option<UserModel>, Self::Error>;
+
+        async fn login(&self, login: String) -> Result<Option<UserModelWithPassword>, Self::Error>;
 }

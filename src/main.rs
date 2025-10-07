@@ -8,7 +8,7 @@ use std::{net::SocketAddr, sync::LazyLock};
 use actix_web::{App, HttpServer, middleware, web::Data};
 use utoipa_actix_web::{AppExt, scope, service_config::ServiceConfig};
 use error::Result;
-use utoipa::OpenApi;
+use utoipa::{Modify, OpenApi, openapi::security::{HttpAuthScheme, HttpBuilder, SecurityScheme}};
 use utoipa_swagger_ui::SwaggerUi;
 
 use crate::domain::utils::Offset;
@@ -42,13 +42,31 @@ static SERVER_ADDRESS: LazyLock<SocketAddr> = LazyLock::new(|| {
 });
 
 #[derive(OpenApi)]
-#[openapi(components(schemas(Offset)))]
+#[openapi(
+        components(
+                schemas(Offset)
+        ),
+        security(("Bearer" = [])),
+        modifiers(&SecurityAddon)
+)]
 struct ApiDoc;
+
+struct SecurityAddon;
+
+impl Modify for SecurityAddon {
+        fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
+                let components = openapi.components.as_mut().unwrap();
+                components.add_security_scheme(
+                        "Bearer",
+                        SecurityScheme::Http(HttpBuilder::new().scheme(HttpAuthScheme::Bearer).bearer_format("JWT").build())
+                )
+        }
+}
 
 #[actix_web::main]
 async fn main() -> Result<()> {
         simple_logger::init_with_level(log::Level::Debug).unwrap();
-        dotenvy::dotenv().ok();
+        let _ = dotenvy::dotenv();
 
         let provider = infrastructure::provider::PgProvider::new().await?;
 
