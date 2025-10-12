@@ -15,11 +15,11 @@ FROM chef AS builder
 COPY --from=planner /app/recipe.json .
 RUN cargo chef cook --release
 COPY . .
-RUN cargo build --release --target x86_64-unknown-linux-musl
+RUN cargo build --release --target x86_64-unknown-linux-musl -p presentation
 
 FROM scratch AS runtime
 WORKDIR /app
-COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/event-microservice /usr/local/bin/app
+COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/presentation /usr/local/bin/app
 
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/app"]

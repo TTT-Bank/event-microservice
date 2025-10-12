@@ -1,0 +1,12 @@
+[package]
+name = "infrastructure"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+domain = { workspace = true }
+sqlx = { workspace = true, features = ["macros", "migrate", "derive", "postgres", "runtime-tokio", "time", "tls-none"] }
+time = { workspace = true, features = ["std"] }
+dotenvy = { workspace = true }
+async-trait = { workspace = true }
+thiserror = { workspace = true }

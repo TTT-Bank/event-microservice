@@ -1,5 +1,5 @@
 networks:
-  db:
+  inner:
     driver: bridge
 
 services:
@@ -16,10 +16,14 @@ services:
       SERVER_WORKERS: 2
       SERVER_ADDRESS: "0.0.0.0:8080"
       JWT_EXPIRES_AFTER: 600
+      REFRESH_EXPIRES_AFTER: 86400
     ports:
       - 8080:8080
+    volumes:
+      - ./pkey.pem:/app/pkey.pem:ro
+      - ./pkey.pub.pem:/app/pkey.pub.pem:ro
     networks:
-      - db
+      - inner
     depends_on:
       - db
   db:
@@ -30,4 +34,4 @@ services:
     ports:
       - "5432:5432"
     networks:
-      - db
+      - inner

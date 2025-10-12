@@ -1,0 +1,12 @@
+[package]
+name = "use_case"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+domain = { workspace = true }
+infrastructure = { workspace = true }
+thiserror = { workspace = true, features = ["std"]}
+argon2 = { workspace = true, features = ["std"] }
+jsonwebtoken = { workspace = true, features = ["use_pem", "rust_crypto"] }
+time = { workspace = true, features = ["std"] }

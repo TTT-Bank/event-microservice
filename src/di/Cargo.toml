@@ -1,0 +1,8 @@
+[package]
+name = "di"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+infrastructure = { workspace = true }
+use_case = { workspace = true }

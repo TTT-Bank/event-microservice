@@ -1,0 +1,12 @@
+[package]
+name = "domain"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+thiserror = { workspace = true, features = ["std"] }
+serde = { workspace = true, features = ["std", "derive"] }
+serde_with = { workspace = true, features = ["std", "macros", "time_0_3"] }
+time = { workspace = true, features = ["std"] }
+dotenvy = { workspace = true }
+jsonwebtoken = { workspace = true, features = ["use_pem", "rust_crypto"] }

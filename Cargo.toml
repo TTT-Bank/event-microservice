@@ -1,26 +1,42 @@
-[package]
-name = "event-microservice"
-version = "0.2.0"
-edition = "2024"
+[workspace]
+resolver = "3"
+package.version = "0.2.0"
+package.edition = "2024"
 
-[dependencies]
-actix-web = "4.11"
-actix-web-httpauth = "0.8"
-utoipa = { version = "5", features = ["actix_extras", "time"] }
-utoipa-actix-web = "0.1"
-utoipa-swagger-ui = { version = "9", features = ["actix-web", "vendored"] }
-thiserror = "2.0"
-simple_logger = "5.0"
-log = "0.4"
-dotenvy = "0.15"
-sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "time", "derive", "migrate", "json"] }
-serde = { version = "1.0", features = ["derive"] }
-serde_with = { version = "3.15", features = ["time_0_3"] }
-serde_json = "1.0"
-serde-aux = { version = "4.7", default-features = false }
-jsonwebtoken = { version = "10.0", features = ["rust_crypto", "use_pem"] }
-time = { version = "0.3", features = ["serde"] }
-argon2 = "0.5"
+members = [
+        "src/core",
+        "src/infrastructure",
+        "src/use_case",
+        "src/presentation",
+        "src/di"
+]
+
+[workspace.dependencies]
+domain = { path = "src/core" }
+infrastructure = { path = "src/infrastructure" }
+use_case = { path = "src/use_case" }
+presentation = { path = "src/presentation" }
+di = { path = "src/di" }
+
+actix-web = { version = "4.11.0", default-features = false }
+actix-web-httpauth = { version = "0.8.2", default-features = false }
+utoipa = { version = "5.4.0", default-features = false }
+utoipa-actix-web = { version = "0.1.2", default-features = false }
+utoipa-swagger-ui = { version = "9.0.2", default-features = false }
+thiserror = { version = "2.0.17", default-features = false }
+simple_logger = { version = "5.0.0", default-features = false }
+log = { version = "0.4.28", default-features = false }
+dotenvy = { version = "0.15.7", default-features = false }
+sqlx = { version = "0.8.6", default-features = false }
+serde = { version = "1.0.228", default-features = false }
+serde_with = { version = "3.15.0", default-features = false }
+serde_json = { version = "1.0.145", default-features = false }
+serde-aux = { version = "4.7.0", default-features = false }
+jsonwebtoken = { version = "10.0.0", default-features = false }
+time = { version = "0.3.44", default-features = false }
+argon2 = { version = "0.5.3", default-features = false }
+async-trait = { version = "0.1.89", default-features = false }
+actix-web-grants = { version = "4.1.2", default-features = false }
 
 [profile.release]
 lto = "fat"
@@ -29,7 +45,7 @@ opt-level = 3
 strip = "symbols"
 panic = "abort"
 
-[lints.rust]
+[workspace.lints.rust]
 ambiguous_negative_literals = "warn"
 missing_debug_implementations = "warn"
 redundant_imports = "warn"
@@ -38,7 +54,7 @@ trivial_numeric_casts = "warn"
 unsafe_op_in_unsafe_fn = "warn"
 unused_lifetimes = "warn"
 
-[lints.clippy]
+[workspace.lints.clippy]
 cargo = { level = "warn", priority = -1 }
 complexity = { level = "warn", priority = -1 }
 correctness = { level = "warn", priority = -1 }

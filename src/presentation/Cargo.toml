@@ -1,0 +1,27 @@
+[package]
+name = "presentation"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+domain = { workspace = true }
+infrastructure = { workspace = true }
+use_case = { workspace = true }
+di = { workspace = true }
+
+actix-web = { workspace = true }
+actix-web-httpauth = { workspace = true }
+utoipa = { workspace = true, features = ["macros", "actix_extras", "time"] }
+utoipa-actix-web = { workspace = true }
+utoipa-swagger-ui = { workspace = true, features = ["actix-web"] }
+thiserror = { workspace = true, features = ["std"] }
+simple_logger = { workspace = true, features = ["colors", "timestamps", "colored", "time"] }
+log = { workspace = true, features = ["std"] }
+dotenvy = { workspace = true }
+serde = { workspace = true, features = ["std", "derive"] }
+serde_with = { workspace = true, features = ["std", "macros", "time_0_3"] }
+serde_json = { workspace = true, features = ["std"] }
+serde-aux = { workspace = true }
+jsonwebtoken = { workspace = true, features = ["use_pem", "rust_crypto"] }
+time = { workspace = true, features = ["std"] }
+actix-web-grants = { workspace = true, features = ["macro-check"] }
