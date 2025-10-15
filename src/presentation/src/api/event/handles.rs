@@ -7,7 +7,7 @@ use actix_web_grants::protect;
 
 use super::{dto::{EventStatusDto, NewEventDto}, types::{EventIdParam, EventResponse, EventVecResponse, ListEventsQuery}};
 
-use super::super::{authentication::{validator, ReqClaims}, error::{HandlerError, Result}};
+use super::super::{authentication::{validator, ClaimsExtractor}, error::{HandlerError, Result}};
 
 pub fn event_app_config(cfg: &mut ServiceConfig) {
         cfg
@@ -39,10 +39,10 @@ async fn get_event(container: Data<DiContainer>, path: Path<EventIdParam>) -> Re
 #[utoipa::path]
 #[post("")]
 #[protect(any("UserRole::Organizer", "UserRole::Admin"), ty = "UserRole")]
-async fn create_event(container: Data<DiContainer>, body: Json<NewEventDto>, claims: ReqClaims) -> Result<HttpResponse> {
+async fn create_event(container: Data<DiContainer>, body: Json<NewEventDto>, claims: ClaimsExtractor) -> Result<HttpResponse> {
         let new_event: NewEvent = body.into_inner().try_into()?;
 
-        if claims.0.sub != new_event.organizer_id {
+        if claims.into_inner().sub != new_event.organizer_id {
                 return Err(HandlerError::IdMismatch);
         }
 
@@ -58,10 +58,10 @@ async fn create_event(container: Data<DiContainer>, body: Json<NewEventDto>, cla
 #[utoipa::path(params(EventIdParam))]
 #[delete("/{event_id}")]
 #[protect(any("UserRole::Organizer", "UserRole::Admin"), ty = "UserRole")]
-async fn delete_event(container: Data<DiContainer>, path: Path<EventIdParam>, claims: ReqClaims) -> Result<HttpResponse> {
+async fn delete_event(container: Data<DiContainer>, path: Path<EventIdParam>, claims: ClaimsExtractor) -> Result<HttpResponse> {
         let event_id = path.into_inner().try_into()?;
 
-        if claims.0.sub != event_id {
+        if claims.into_inner().sub != event_id {
                 return Err(HandlerError::IdMismatch);
         }
 

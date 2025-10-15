@@ -1,9 +1,11 @@
-use std::{fs::File, io::Read, sync::LazyLock};
+use std::{fmt::Display, fs::File, io::Read, str::FromStr, sync::LazyLock};
 
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, TimestampSeconds, DisplayFromStr};
 use time::{Duration, OffsetDateTime};
+
+use crate::error::DomainError;
 
 use super::user::{UserRole, UserId};
 
@@ -59,6 +61,33 @@ static HEADER: LazyLock<Header> = LazyLock::new(|| {
 pub type AccessToken = String;
 pub type RefreshToken = String;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Token {
+        Access,
+        Refresh
+}
+
+impl FromStr for Token {
+        type Err = DomainError;
+
+        fn from_str(s: &str) -> Result<Self, Self::Err> {
+                match s {
+                        "access" => Ok(Self::Access),
+                        "refresh" => Ok(Self::Refresh),
+                        _ => Err(DomainError::Parse(s.to_string()))
+                }
+        }
+}
+
+impl Display for Token {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self {
+                        Self::Access => f.write_str("access"),
+                        Self::Refresh => f.write_str("refresh")
+                }
+        }
+}
+
 #[derive(Debug)]
 pub struct TokenPair {
         pub access_token: AccessToken,
@@ -70,7 +99,8 @@ pub struct TokenPair {
 pub struct Claims {
         pub iss: String,
         pub sub: UserId,
-        pub aud: String,
+        #[serde_as(as = "DisplayFromStr")]
+        pub aud: Token,
         #[serde_as(as = "TimestampSeconds")]
         pub exp: OffsetDateTime,
         #[serde_as(as = "TimestampSeconds")]
@@ -86,7 +116,7 @@ impl Claims {
                 Self {
                         iss: String::from("event_microservice"),
                         sub: user_id,
-                        aud: String::from("access"),
+                        aud: Token::Access,
                         exp: current_timestamp + *ACCESS_EXPIRES_AFTER,
                         nbf: current_timestamp,
                         iat: current_timestamp,
@@ -98,7 +128,7 @@ impl Claims {
                 Self {
                         iss: String::from("event_microservice"),
                         sub: user_id,
-                        aud: String::from("refresh"),
+                        aud: Token::Refresh,
                         exp: current_timestamp + *REFRESH_EXPIRES_AFTER,
                         nbf: current_timestamp,
                         iat: current_timestamp,
@@ -112,5 +142,13 @@ impl Claims {
 
         pub fn decode_from(token: &str) -> Result<Self, jsonwebtoken::errors::Error> {
                 Ok(jsonwebtoken::decode(&token, &PUBLIC_KEY, &VALIDATION)?.claims)
+        }
+
+        pub fn is_access(&self) -> bool {
+                self.aud == Token::Access
+        }
+
+        pub fn is_refresh(&self) -> bool {
+                self.aud == Token::Refresh
         }
 }

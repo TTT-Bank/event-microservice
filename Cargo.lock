@@ -657,7 +657,7 @@ dependencies = [
 
 [[package]]
 name = "di"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "infrastructure",
  "use_case",
@@ -688,7 +688,7 @@ dependencies = [
 
 [[package]]
 name = "domain"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "dotenvy",
  "jsonwebtoken",
@@ -1265,7 +1265,7 @@ dependencies = [
 
 [[package]]
 name = "infrastructure"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "domain",
@@ -1724,7 +1724,7 @@ dependencies = [
 
 [[package]]
 name = "presentation"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "actix-web",
  "actix-web-grants",
@@ -2759,7 +2759,7 @@ dependencies = [
 
 [[package]]
 name = "use_case"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "argon2",
  "domain",

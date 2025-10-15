@@ -2,7 +2,7 @@ use std::future::{Ready, ready};
 
 use actix_web::{FromRequest, HttpMessage, dev::ServiceRequest};
 use actix_web_grants::authorities::AttachAuthorities;
-use actix_web_httpauth::{extractors::{AuthenticationError, bearer::{self, BearerAuth}}, headers::www_authenticate::bearer::Bearer};
+use actix_web_httpauth::extractors::bearer::BearerAuth;
 use domain::models::token::Claims;
 
 pub async fn validator(
@@ -12,30 +12,35 @@ pub async fn validator(
         let claims = Claims::decode_from(jwt.token());
         match claims {
                 Ok(claims) => {
-                        if claims.aud != "access" {
-                                return Err((AuthenticationError::new(Bearer::build().error(bearer::Error::InvalidToken).finish()).into(), req));
+                        if !claims.is_access() {
+                                return Err((actix_web::error::ErrorUnauthorized("Use of refresh token"), req))
                         }
                         req.extensions_mut().insert(claims.clone());
                         req.attach([claims.role]);
                         Ok(req)
                 }
                 Err(_) => {
-                        Err((AuthenticationError::new(Bearer::build().error(bearer::Error::InvalidToken).finish()).into(), req))
+                        Err((actix_web::error::ErrorUnauthorized("Could not parse token"), req))
                 }
         }
 }
 
-pub struct ReqClaims(pub Claims);
+pub struct ClaimsExtractor(pub Claims);
 
-impl FromRequest for ReqClaims {
+impl ClaimsExtractor {
+        pub fn into_inner(self) -> Claims {
+                self.0
+        }
+}
+
+impl FromRequest for ClaimsExtractor {
         type Error = actix_web::Error;
         type Future = Ready<Result<Self, Self::Error>>;
 
         fn from_request(req: &actix_web::HttpRequest, _: &mut actix_web::dev::Payload) -> Self::Future {
-                if let Some(claims) = req.extensions().get::<Claims>() {
-                        ready(Ok(Self(claims.clone())))
-                } else {
-                        ready(Err(actix_web::error::ErrorUnauthorized("Missing credentials")))
+                match req.extensions().get::<Claims>() {
+                        Some(claims) => ready(Ok(Self(claims.clone()))),
+                        None => ready(Err(actix_web::error::ErrorUnauthorized("Missing claims")))
                 }
         }
 }

@@ -1,8 +1,9 @@
 use actix_web::{HttpResponse, delete, get, post, web::{Data, Path, Query}};
 use di::container::DiContainer;
+use domain::models::favorite::FavoriteId;
 use utoipa_actix_web::{scope, service_config::ServiceConfig};
 
-use crate::api::user::types::UserIdParam;
+use crate::api::{HandlerError, authentication::ClaimsExtractor, user::types::UserIdParam};
 
 use super::{types::{FavoriteIdParam, FavoriteEventResponse, FavoriteEventVecResponse, FavoriteResponse, ListFavoriteEventsQuery}};
 
@@ -33,8 +34,13 @@ async fn get_favorite(container: Data<DiContainer>, path: Path<FavoriteIdParam>)
 
 #[utoipa::path(params(FavoriteIdParam))]
 #[post("/{event_id}")]
-async fn create_favorite(container: Data<DiContainer>, path: Path<FavoriteIdParam>) -> Result<HttpResponse> {
-        let favorite_id = path.into_inner().try_into()?;
+async fn create_favorite(container: Data<DiContainer>, path: Path<FavoriteIdParam>, claims: ClaimsExtractor) -> Result<HttpResponse> {
+        let favorite_id: FavoriteId = path.into_inner().try_into()?;
+
+        if claims.into_inner().sub != favorite_id.user_id {
+                return Err(HandlerError::IdMismatch);
+        }
+
         let favorite_service = container.create_favorite_service();
 
         let favorite = favorite_service.create(favorite_id).await?;
@@ -46,8 +52,13 @@ async fn create_favorite(container: Data<DiContainer>, path: Path<FavoriteIdPara
 
 #[utoipa::path(params(FavoriteIdParam))]
 #[delete("/{event_id}")]
-async fn delete_favorite(container: Data<DiContainer>, path: Path<FavoriteIdParam>) -> Result<HttpResponse> {
-        let favorite_id = path.into_inner().try_into()?;
+async fn delete_favorite(container: Data<DiContainer>, path: Path<FavoriteIdParam>, claims: ClaimsExtractor) -> Result<HttpResponse> {
+        let favorite_id: FavoriteId = path.into_inner().try_into()?;
+
+        if claims.into_inner().sub != favorite_id.user_id {
+                return Err(HandlerError::IdMismatch);
+        }
+
         let favorite_service = container.create_favorite_service();
 
         let favorite = favorite_service.delete(favorite_id).await?;
